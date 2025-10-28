@@ -1,0 +1,5 @@
+{
+  "channel_timeout_time_seconds": 15,
+  "voice_channel_timeout_time_seconds": 15,
+  "land_mine_chance_range": 1
+}

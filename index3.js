@@ -1,4 +1,7 @@
-const { Client, Events, GatewayIntentBits } = require('discord.js');
+const fs = require('node:fs');
+const path = require('node:path');
+const { Client, Collection, Events, GatewayIntentBits, MessageFlags, SlashCommandBuilder } = require('discord.js');
+const { getSettings } = require('./settings_manager.js');
 
 const token = process.env.DISCORD_TOKEN;
 
@@ -15,6 +18,54 @@ const client = new Client({
 // client ready event - runs once on startup
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`Ready! Logged in as ${readyClient.user.tag}`);
+});
+
+// gather commands
+client.commands = new Collection();
+
+const foldersPath = path.join(__dirname, 'commands');
+const commandFolders = fs.readdirSync(foldersPath);
+for (const folder of commandFolders) {
+	const commandsPath = path.join(foldersPath, folder);
+	const commandFiles = fs.readdirSync(commandsPath).filter((file) => file.endsWith('.js'));
+	for (const file of commandFiles) {
+		const filePath = path.join(commandsPath, file);
+		const command = require(filePath);
+		// Set a new item in the Collection with the key as the command name and the value as the exported module
+		if ('data' in command && 'execute' in command) {
+			client.commands.set(command.data.name, command);
+		} else {
+			console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
+		}
+	}
+}
+
+// when a command is run
+client.on(Events.InteractionCreate, async (interaction) => {
+	if (!interaction.isChatInputCommand()) return;
+	const command = interaction.client.commands.get(interaction.commandName);
+
+	if (!command) {
+		console.error(`No command matching ${interaction.commandName} was found.`);
+		return;
+	}
+
+	try {
+		await command.execute(interaction);
+	} catch (error) {
+		console.error(error);
+		if (interaction.replied || interaction.deferred) {
+			await interaction.followUp({
+				content: 'There was an error while executing this command!',
+				flags: MessageFlags.Ephemeral,
+			});
+		} else {
+			await interaction.reply({
+				content: 'There was an error while executing this command!',
+				flags: MessageFlags.Ephemeral,
+			});
+		}
+	}
 });
 
 // helper randi function
@@ -34,11 +85,39 @@ const ArrayHelper = {
   },
 };
 
+// settings
+let settings = getSettings();
+console.log(settings);
+
+const settingsPath = path.resolve('./settings.json');
+
+fs.watchFile(settingsPath, () => {
+  settings = getSettings();
+  console.log(`Settings reloaded due to file change: ${JSON.stringify(settings)}`);
+});
+
 // track members currently timed out
 const timedOutMembers = [];
 
 // track mute state for users who leave voice while muted
 const mutedUsers = new Map();
+
+// clean up expired entries every day
+setInterval(() => {
+  const now = Date.now();
+  let cleaned = 0;
+  
+  for (const [userId, expiresAt] of mutedUsers.entries()) {
+    if (now >= expiresAt) {
+      mutedUsers.delete(userId);
+      cleaned++;
+    }
+  }
+  
+  if (cleaned > 0) {
+    console.log(`Cleaned up ${cleaned} expired mute entries`);
+  }
+}, 24 * 60 * 60 * 1000);
 
 // message create event handler
 client.on('messageCreate', async (message) => {
@@ -61,7 +140,7 @@ client.on('messageCreate', async (message) => {
     }
 
     // random chance to trigger landmine
-    if (getRandomIntInclusive(1, process.env.LANDMINE_RANGE) === 1) {
+    if (getRandomIntInclusive(1, settings.land_mine_chance_range) === 1) {
       const nickname =
         message.member?.nickname || message.author.username;
 
@@ -76,7 +155,7 @@ client.on('messageCreate', async (message) => {
       try {
         await message.reply(
           `${nickname} stepped on a land mine and was timed out for ` +
-            `${process.env.TIMEOUT_SECONDS} seconds.`
+            `${settings.channel_timeout_time_seconds} seconds.`
         );
       } catch (err) {
         console.error(
@@ -99,7 +178,7 @@ client.on('messageCreate', async (message) => {
             content:
               `Your mouth was blown off in the land mine ` +
               `explosion. You have been muted. Wait ` +
-              `${process.env.TIMEOUT_SECONDS} seconds to be ` +
+              `${settings.voice_channel_timeout_time_seconds} seconds to be ` +
               `unmuted.`,
           });
 
@@ -117,20 +196,14 @@ client.on('messageCreate', async (message) => {
 
       // record mute expiration time
       const expiresAt =
-        Date.now() + process.env.TIMEOUT_SECONDS * 1000;
+        Date.now() + settings.voice_channel_timeout_time_seconds * 1000;
       mutedUsers.set(message.author.id, expiresAt);
 
-      // start un-timeout timer
+      // start message un-timeout timer
       setTimeout(() => {
         try {
           ArrayHelper.erase(timedOutMembers, message.author);
-
-          // only unmute if member exists and is in voice
-          if (member?.voice.channel) {
-            member.voice.setMute(false);
-          }
-
-          console.log(`${nickname} is no longer timed out.`);
+          console.log(`${nickname} is no longer timed out for messages.`);
         } catch (err) {
           console.error(
             `Failed to remove ${message.author.tag} from ` +
@@ -138,7 +211,26 @@ client.on('messageCreate', async (message) => {
             err
           );
         }
-      }, process.env.TIMEOUT_SECONDS * 1000);
+      }, settings.channel_timeout_time_seconds * 1000);
+      
+      // start voice un-timeout timer
+      setTimeout(() => {
+        try {
+          // only unmute if member exists and is in voice
+          if (member?.voice.channel) {
+            member.voice.setMute(false);
+            mutedUsers.delete(message.author.id);
+          }
+
+          console.log(`${nickname} is no longer timed out in voice channels.`);
+        } catch (err) {
+          console.error(
+            `Failed to remove ${message.author.tag} from ` +
+            `timeout:`,
+            err
+          );
+        }
+      }, settings.voice_channel_timeout_time_seconds * 1000);
     }
   } catch (err) {
     console.error('Unexpected error in messageCreate handler:', err);
