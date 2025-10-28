@@ -26,7 +26,7 @@ module.exports = {
       const index = opted_out.indexOf(target_id);
       if (index === -1) {
         await interaction.reply({
-          content: `${target_user.tag} is not opted out.`,
+          content: `**${target_user.tag}** is not opted out.`,
           ephemeral: true,
         });
         return;
@@ -37,7 +37,7 @@ module.exports = {
       setSetting('opted_out_users', opted_out);
 
       await interaction.reply(
-        `${target_user.tag} has been opted back in to land mine triggers.`
+        `**${target_user.tag}** has been opted back in to land mine triggers.`
       );
     } catch (err) {
       console.error('Error in opt_in command:', err);

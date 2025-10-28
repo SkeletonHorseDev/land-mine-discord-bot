@@ -25,7 +25,7 @@ module.exports = {
       // check if already opted out
       if (opted_out.includes(target_id)) {
         await interaction.reply({
-          content: `${target_user.tag} is already opted out.`,
+          content: `**${target_user.tag}** is already opted out.`,
           ephemeral: true,
         });
         return;
@@ -70,7 +70,7 @@ module.exports = {
       }
 
       await interaction.reply(
-        `${target_user.tag} has been opted out of land mine triggers.`
+        `**${target_user.tag}** has been opted out of land mine triggers.`
       );
     } catch (err) {
       console.error('Error in opt_out command:', err);
