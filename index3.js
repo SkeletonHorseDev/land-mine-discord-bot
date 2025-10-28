@@ -23,6 +23,14 @@ client.once(Events.ClientReady, (readyClient) => {
 // gather commands
 client.commands = new Collection();
 
+// track members currently timed out
+const timedOutMembers = [];
+client.timedOutMembers = timedOutMembers;
+
+// track mute state for users who leave voice while muted
+const mutedUsers = new Map();
+client.mutedUsers = mutedUsers;
+
 const foldersPath = path.join(__dirname, 'commands');
 const commandFolders = fs.readdirSync(foldersPath);
 for (const folder of commandFolders) {
@@ -96,12 +104,6 @@ fs.watchFile(settingsPath, () => {
   console.log(`Settings reloaded due to file change: ${JSON.stringify(settings)}`);
 });
 
-// track members currently timed out
-const timedOutMembers = [];
-
-// track mute state for users who leave voice while muted
-const mutedUsers = new Map();
-
 // clean up expired entries every day
 setInterval(() => {
   const now = Date.now();
@@ -125,6 +127,12 @@ client.on('messageCreate', async (message) => {
     // ignore bot messages
     if (message.author.bot) return;
 
+    // ignore users who have opted out
+    if (settings.opted_out_users?.includes(message.author.id)) {
+      console.log("Ignored opted out user.");
+      return;
+    }
+    
     console.log('Received message.');
 
     // check if user is timed out
@@ -154,7 +162,7 @@ client.on('messageCreate', async (message) => {
       // send initial notification
       try {
         await message.reply(
-          `${nickname} stepped on a land mine and was timed out for ` +
+          `**${nickname}** stepped on a land mine and was timed out for ` +
             `${settings.channel_timeout_time_seconds} seconds.`
         );
       } catch (err) {
@@ -219,7 +227,7 @@ client.on('messageCreate', async (message) => {
           // only unmute if member exists and is in voice
           if (member?.voice.channel) {
             member.voice.setMute(false);
-            mutedUsers.delete(message.author.id);
+            //mutedUsers.delete(message.author.id);
           }
 
           console.log(`${nickname} is no longer timed out in voice channels.`);
@@ -243,10 +251,30 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     // check if user joined a voice channel
     if (newState.channel && !oldState.channel) {
       const userId = newState.member.id;
+      const settings = getSettings();
+
+      // check if user is opted out - unmute them regardless
+      if (settings.opted_out_users?.includes(userId)) {
+        if (newState.member.voice.channel) {
+          try {
+            await newState.member.voice.setMute(false);
+            console.log(
+              `Unmuted opted-out user ${newState.member.user.tag} on ` +
+              `voice channel join`
+            );
+          } catch (err) {
+            console.error(
+              `Failed to unmute ${newState.member.user.tag}:`,
+              err
+            );
+          }
+        }
+        return;
+      }
 
       // check if user is still muted from a landmine
-      if (mutedUsers.has(userId)) {
-        const expiresAt = mutedUsers.get(userId);
+      if (newState.client.mutedUsers?.has(userId)) {
+        const expiresAt = newState.client.mutedUsers.get(userId);
 
         // if timeout expired, unmute them
         if (Date.now() >= expiresAt) {
@@ -262,7 +290,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
               err
             );
           }
-          mutedUsers.delete(userId);
+          newState.client.mutedUsers.delete(userId);
         } else {
           // timeout still active, reapply mute
           try {
