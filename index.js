@@ -83,6 +83,27 @@ function getRandomIntInclusive(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function getLineForMessageLandmine(username) {
+  const name = `**${username}**`;
+  const seconds = `${settings.channel_timeout_time_seconds}`;
+  let line;
+
+  const rand = getRandomIntInclusive(1, 20);
+  if (rand === 1) {
+    line = `${name} stepped on a land mine and was blown to fucking bits. Wait ${seconds} seconds for rejuv respawn (un-timeout).`;
+  } else if (rand <= 3) {
+    line = `${name} stepped on a land mine. Better than dying to a giant mole. Wait ${seconds} seconds to be un-timed out.`;
+  } else if (rand <=  5) {
+    line = `${name} stepped on a land mine. No one gets past me. Wait ${seconds} seconds to be un-timed out.`;
+  } else if (rand <= 10) {
+   line = `The land mines never falter... ${name} stepped on a landmine. A moment of silence for ${seconds} seconds, please.`;
+  } else {
+    line = `${name} stepped on a land mine and is timed out for ${seconds} seconds.`;
+  }
+
+  return line;
+}
+
 // array helper function I like
 const ArrayHelper = {
   erase(arr, value) {
@@ -149,6 +170,27 @@ client.on('messageCreate', async (message) => {
 
     // random chance to trigger landmine
     if (getRandomIntInclusive(1, settings.land_mine_chance_range) === 1) {
+      // small chance to be saved even after landing on a mine
+      if (getRandomIntInclusive(1, 30) === 1) {
+        const nickname =
+          message.member?.nickname || message.author.username;
+
+        console.log(`${nickname} was saved from a land mine.`);
+
+        // send notification they were saved
+        try {
+          await message.reply(
+            `**${nickname}**, STOP. Whoops, someone dropped a land mine here in front of you. Let me just pick that up. Wouldn't want you getting hurt. `
+          );
+        } catch (err) {
+          console.error(
+            `Failed to send reply to ${message.author.tag}:`,
+            err
+          );
+        }
+        return;
+      }
+
       const nickname =
         message.member?.nickname || message.author.username;
 
@@ -159,18 +201,6 @@ client.on('messageCreate', async (message) => {
         timedOutMembers.push(message.author);
       }
 
-      // send initial notification
-      try {
-        await message.reply(
-          `**${nickname}** stepped on a land mine and was timed out for ` +
-            `${settings.channel_timeout_time_seconds} seconds.`
-        );
-      } catch (err) {
-        console.error(
-          `Failed to send reply to ${message.author.tag}:`,
-          err
-        );
-      }
 
       // get guild member
       const member = message.guild.members.cache.get(
@@ -184,7 +214,8 @@ client.on('messageCreate', async (message) => {
 
           await message.reply({
             content:
-              `Your mouth was blown off in the land mine ` +
+              getLineForMessageLandmine(nickname) +
+              `\n\nYour mouth was blown off in the land mine ` +
               `explosion. You have been muted. Wait ` +
               `${settings.voice_channel_timeout_time_seconds} seconds to be ` +
               `unmuted.`,
@@ -200,6 +231,18 @@ client.on('messageCreate', async (message) => {
       } else {
         console.log(`${message.author.tag} is not in a voice ` +
           `channel - message timeout only`);
+     
+        // send message notification
+        try {
+          await message.reply(
+            getLineForMessageLandmine(nickname)
+          );
+        } catch (err) {
+          console.error(
+            `Failed to send reply to ${message.author.tag}:`,
+            err
+          );
+        }
       }
 
       // record mute expiration time
