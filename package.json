@@ -1,0 +1,12 @@
+{
+  "name": "landmine_warden",
+  "module": "index.js",
+  "dependencies": {
+    "discord.js": "^14.24.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "private": true,
+  "type": "module"
+}
