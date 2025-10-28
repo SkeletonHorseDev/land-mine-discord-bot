@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, Events, GatewayIntentBits, MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { getSettings } = require('./settings_manager.js');
+const { incrementStat } = require('./stats_manager.js');
 
 const token = process.env.DISCORD_TOKEN;
 
@@ -170,12 +171,26 @@ client.on('messageCreate', async (message) => {
 
     // random chance to trigger landmine
     if (getRandomIntInclusive(1, settings.land_mine_chance_range) === 1) {
+      // increment rolls stat
+      incrementStat(
+        message.author.id,
+        message.author.username,
+        'rolls'
+      );
+
       // small chance to be saved even after landing on a mine
       if (getRandomIntInclusive(1, 30) === 1) {
         const nickname =
           message.member?.nickname || message.author.username;
 
         console.log(`${nickname} was saved from a land mine.`);
+
+        // increment saved stat
+        incrementStat(
+          message.author.id,
+          message.author.username,
+          'saved'
+        );
 
         // send notification they were saved
         try {
@@ -196,6 +211,13 @@ client.on('messageCreate', async (message) => {
 
       console.log(`${nickname} stepped on a land mine.`);
 
+      // increment landed on mine stat
+      incrementStat(
+        message.author.id,
+        message.author.username,
+        'landed_on_mine'
+      );
+
       // add user to timeout list
       if (!timedOutMembers.includes(message.author)) {
         timedOutMembers.push(message.author);
@@ -211,6 +233,13 @@ client.on('messageCreate', async (message) => {
       if (member?.voice.channel) {
         try {
           await member.voice.setMute(true);
+
+          // increment muted in voice stat
+          incrementStat(
+            message.author.id,
+            message.author.username,
+            'muted_in_voice'
+          );
 
           await message.reply({
             content:
