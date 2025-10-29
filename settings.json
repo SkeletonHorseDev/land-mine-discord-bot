@@ -1,6 +1,6 @@
 {
-  "channel_timeout_time_seconds": 15,
-  "voice_channel_timeout_time_seconds": 15,
-  "land_mine_chance_range": 1,
+  "channel_timeout_time_seconds": 120,
+  "voice_channel_timeout_time_seconds": 30,
+  "land_mine_chance_range": 100,
   "opted_out_users": []
 }

@@ -89,7 +89,7 @@ function getLineForMessageLandmine(username) {
   const seconds = `${settings.channel_timeout_time_seconds}`;
   let line;
 
-  const rand = getRandomIntInclusive(1, 20);
+  const rand = getRandomIntInclusive(1, 24);
   if (rand === 1) {
     line = `${name} stepped on a land mine and was blown to fucking bits. Wait ${seconds} seconds for rejuv respawn (un-timeout).`;
   } else if (rand <= 3) {
@@ -98,6 +98,8 @@ function getLineForMessageLandmine(username) {
     line = `${name} stepped on a land mine. No one gets past me. Wait ${seconds} seconds to be un-timed out.`;
   } else if (rand <= 10) {
    line = `The land mines never falter... ${name} stepped on a landmine. A moment of silence for ${seconds} seconds, please.`;
+  } else if (rand <= 13) {
+    line = `${name} stepped on a land mine and is slimed for ${seconds} seconds.\nhttps://tenor.com/view/viscous-dead-lock-dead-lock-viscous-deadlock-viscous-viscous-deadlock-gif-16424797318208904905`
   } else {
     line = `${name} stepped on a land mine and is timed out for ${seconds} seconds.`;
   }
@@ -179,7 +181,7 @@ client.on('messageCreate', async (message) => {
       );
 
       // small chance to be saved even after landing on a mine
-      if (getRandomIntInclusive(1, 30) === 1) {
+      if (getRandomIntInclusive(1, 50) === 1) {
         const nickname =
           message.member?.nickname || message.author.username;
 

@@ -64,3 +64,4 @@ Thumbs.db
 dynamodb/
 .tern-port
 .vscode-test
+stats.json
